@@ -1,0 +1,10 @@
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Editor / OS
+.DS_Store
+*.tmp
+*.log

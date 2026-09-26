@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vision Checker - 高精度外観色検査システム</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <!-- Lucide Icons for clean aesthetic -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body>
+    <div class="app-container">
+        <!-- HEADER -->
+        <header class="app-header">
+            <div class="header-logo">
+                <div class="logo-icon">
+                    <i data-lucide="scan-eye"></i>
+                </div>
+                <div class="logo-text">
+                    <h1>VISION<span>CHECKER</span></h1>
+                    <p>外観色合否判定システム</p>
+                </div>
+            </div>
+            <div class="header-actions">
+                <div class="recipe-selector-group">
+                    <label for="recipe-select"><i data-lucide="settings"></i> レシピ:</label>
+                    <select id="recipe-select">
+                        <option value="default">デフォルト設定</option>
+                    </select>
+                    <button id="save-recipe-btn" class="btn btn-secondary btn-sm" title="現在の設定をLocalStorageに保存">
+                        <i data-lucide="save"></i> 保存
+                    </button>
+                </div>
+                <div class="file-actions">
+                    <button id="export-recipe-btn" class="btn btn-outline btn-sm" title="設定をJSONとしてエクスポート">
+                        <i data-lucide="download"></i> 設定書き出し
+                    </button>
+                    <button id="import-recipe-btn" class="btn btn-outline btn-sm" title="設定JSONを読み込み">
+                        <i data-lucide="upload"></i> 設定読み込み
+                        <input type="file" id="recipe-file-input" accept=".json" style="display: none;">
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- MAIN LAYOUT -->
+        <main class="app-main">
+            <!-- LEFT SCREEN: Canvas and Image Loader -->
+            <section class="workspace-section">
+                <div class="card workspace-card">
+                    <div class="workspace-header">
+                        <div class="input-mode-tabs">
+                            <button id="mode-image-tab" class="mode-tab active" title="静止画像ファイルを読み込んで検査">
+                                <i data-lucide="image"></i> 画像ファイル
+                            </button>
+                            <button id="mode-camera-tab" class="mode-tab" title="PCのカメラから動画を取り込んで検査">
+                                <i data-lucide="camera"></i> Webカメラ
+                            </button>
+                        </div>
+
+                        <!-- 画像モード用コントロール -->
+                        <div class="workspace-controls" id="canvas-controls" style="display: none;">
+                            <button id="zoom-in-btn" class="btn-icon" title="拡大"><i data-lucide="zoom-in"></i></button>
+                            <button id="zoom-out-btn" class="btn-icon" title="縮小"><i data-lucide="zoom-out"></i></button>
+                            <button id="zoom-reset-btn" class="btn-icon" title="等倍表示"><i data-lucide="maximize-2"></i></button>
+                            <span class="zoom-level" id="zoom-display">100%</span>
+                            <div class="divider"></div>
+                            <button id="clear-image-btn" class="btn btn-danger btn-xs"><i data-lucide="trash-2"></i> 画像解除</button>
+                        </div>
+
+                        <!-- カメラモード用コントロール -->
+                        <div class="workspace-controls" id="camera-controls" style="display: none;">
+                            <select id="camera-select" class="camera-dropdown" title="カメラデバイスを選択"></select>
+                            <button id="toggle-camera-btn" class="btn btn-primary btn-xs">
+                                <i data-lucide="video"></i> カメラ起動
+                            </button>
+                            <div class="divider"></div>
+                            <label class="toggle-switch-label" title="カメラ映像をリアルタイムに自動色判定">
+                                <input type="checkbox" id="realtime-inspect-toggle" checked>
+                                <span>リアルタイム判定</span>
+                            </label>
+                            <label class="toggle-switch-label" title="合格時にピンポン音を鳴らす">
+                                <input type="checkbox" id="sound-enabled-toggle" checked>
+                                <span>ピンポン音通知</span>
+                            </label>
+                            <button id="capture-frame-btn" class="btn btn-secondary btn-xs" title="現在のフレームをキャプチャして履歴に記録" disabled>
+                                <i data-lucide="camera"></i> 撮影判定
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="canvas-container" id="drop-zone">
+                        <!-- Drop Zone Placeholder (画像モード用) -->
+                        <div class="drop-zone-placeholder" id="drop-placeholder">
+                            <div class="upload-icon">
+                                <i data-lucide="image-plus"></i>
+                            </div>
+                            <h3>検査画像をドラッグ＆ドロップ</h3>
+                            <p>またはファイルを選択してください</p>
+                            <button class="btn btn-primary" id="select-image-btn">
+                                <i data-lucide="folder-open"></i> 画像を選択
+                            </button>
+                            <input type="file" id="image-file-input" accept="image/*" style="display: none;">
+                        </div>
+
+                        <!-- Camera Placeholder (カメラモード待機用) -->
+                        <div class="camera-placeholder" id="camera-placeholder" style="display: none;">
+                            <div class="upload-icon camera-icon">
+                                <i data-lucide="video"></i>
+                            </div>
+                            <h3>Webカメラが停止しています</h3>
+                            <p>カメラを起動して製品を映してください</p>
+                            <button class="btn btn-primary" id="start-camera-placeholder-btn">
+                                <i data-lucide="video"></i> カメラを起動
+                            </button>
+                        </div>
+
+                        <!-- Hidden video element for camera stream -->
+                        <video id="webcam-video" autoplay playsinline muted style="display: none;"></video>
+
+                        <!-- Main canvas -->
+                        <canvas id="inspection-canvas"></canvas>
+                        
+                        <!-- Zoom Magnifier Overlay -->
+                        <div class="magnifier" id="pixel-magnifier">
+                            <canvas id="magnifier-canvas"></canvas>
+                            <div class="magnifier-info" id="magnifier-color-text">RGB(255, 255, 255)</div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- RIGHT SCREEN: Controls & Results -->
+            <section class="control-section">
+                <!-- TOTAL JUDGEMENT CARD -->
+                <div class="card result-card" id="total-judgement-card">
+                    <div class="judgement-label">総合判定</div>
+                    <div class="judgement-value status-idle" id="total-judgement-value">
+                        <span class="status-icon"><i data-lucide="clock"></i></span>
+                        <span class="status-text">画像待機中</span>
+                    </div>
+                    <div class="judgement-details">
+                        <span id="pass-points-count">0 / 4</span> ポイント適合
+                    </div>
+                </div>
+
+                <!-- INSPECTION POINTS CONFIG -->
+                <div class="card config-card">
+                    <div class="card-header">
+                        <div class="section-title">
+                            <i data-lucide="sliders"></i>
+                            <h2>検査ポイント設定</h2>
+                        </div>
+                        <button id="trigger-inspection-btn" class="btn btn-primary btn-sm" disabled>
+                            <i data-lucide="play"></i> 判定実行
+                        </button>
+                    </div>
+
+                    <div class="points-list">
+                        <!-- Point 1 -->
+                        <div class="point-item" id="point-1-container" data-point-id="1">
+                            <div class="point-header accordion-toggle">
+                                <div class="point-title">
+                                    <span class="point-badge badge-p1">P1</span>
+                                    <span class="point-name">赤 (左下)</span>
+                                </div>
+                                <div class="point-summary">
+                                    <div class="summary-color" id="p1-summary-color" title="現在の検出色"></div>
+                                    <span class="summary-diff" id="p1-summary-diff" title="誤差">--</span>
+                                    <div class="point-status status-idle" id="p1-status">WAIT</div>
+                                    <span class="accordion-icon"><i data-lucide="chevron-down"></i></span>
+                                </div>
+                            </div>
+                            <div class="point-body">
+                                <div class="point-controls">
+                                    <div class="ctrl-group">
+                                        <label>基準色 (Target)</label>
+                                        <div class="color-picker-wrapper">
+                                            <div class="color-preview" id="p1-target-preview" style="background-color: #ff0000;"></div>
+                                            <input type="color" id="p1-color-input" value="#ff0000">
+                                            <button class="btn-picker-pick" id="p1-pick-btn" title="画像から色を取得">
+                                                <i data-lucide="pipette"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div class="ctrl-group">
+                                        <div class="label-with-val">
+                                            <label for="p1-tolerance">許容誤差</label>
+                                            <span class="val-display" id="p1-tolerance-val">30</span>
+                                        </div>
+                                        <input type="range" id="p1-tolerance" min="5" max="100" value="30">
+                                    </div>
+                                    <div class="ctrl-group col-span-2">
+                                        <div class="coordinate-inputs">
+                                            <div>X: <input type="number" id="p1-x" value="100" min="0"></div>
+                                            <div>Y: <input type="number" id="p1-y" value="100" min="0"></div>
+                                            <div>半径: <input type="number" id="p1-radius" value="15" min="1" max="100"> px</div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="point-feedback">
+                                    <div class="feedback-col">
+                                        <span>検出値</span>
+                                        <div class="color-preview-small-wrapper">
+                                            <div class="color-preview-small" id="p1-current-preview"></div>
+                                            <span class="color-text-small" id="p1-current-text">N/A</span>
+                                        </div>
+                                    </div>
+                                    <div class="feedback-col">
+                                        <span>誤差距離</span>
+                                        <span class="diff-value-text" id="p1-diff-text">--</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Point 2 -->
+                        <div class="point-item" id="point-2-container" data-point-id="2">
+                            <div class="point-header accordion-toggle">
+                                <div class="point-title">
+                                    <span class="point-badge badge-p2">P2</span>
+                                    <span class="point-name">緑 (左上)</span>
+                                </div>
+                                <div class="point-summary">
+                                    <div class="summary-color" id="p2-summary-color" title="現在の検出色"></div>
+                                    <span class="summary-diff" id="p2-summary-diff" title="誤差">--</span>
+                                    <div class="point-status status-idle" id="p2-status">WAIT</div>
+                                    <span class="accordion-icon"><i data-lucide="chevron-down"></i></span>
+                                </div>
+                            </div>
+                            <div class="point-body">
+                                <div class="point-controls">
+                                    <div class="ctrl-group">
+                                        <label>基準色 (Target)</label>
+                                        <div class="color-picker-wrapper">
+                                            <div class="color-preview" id="p2-target-preview" style="background-color: #00ff00;"></div>
+                                            <input type="color" id="p2-color-input" value="#00ff00">
+                                            <button class="btn-picker-pick" id="p2-pick-btn" title="画像から色を取得">
+                                                <i data-lucide="pipette"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div class="ctrl-group">
+                                        <div class="label-with-val">
+                                            <label for="p2-tolerance">許容誤差</label>
+                                            <span class="val-display" id="p2-tolerance-val">30</span>
+                                        </div>
+                                        <input type="range" id="p2-tolerance" min="5" max="100" value="30">
+                                    </div>
+                                    <div class="ctrl-group col-span-2">
+                                        <div class="coordinate-inputs">
+                                            <div>X: <input type="number" id="p2-x" value="200" min="0"></div>
+                                            <div>Y: <input type="number" id="p2-y" value="100" min="0"></div>
+                                            <div>半径: <input type="number" id="p2-radius" value="15" min="1" max="100"> px</div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="point-feedback">
+                                    <div class="feedback-col">
+                                        <span>検出値</span>
+                                        <div class="color-preview-small-wrapper">
+                                            <div class="color-preview-small" id="p2-current-preview"></div>
+                                            <span class="color-text-small" id="p2-current-text">N/A</span>
+                                        </div>
+                                    </div>
+                                    <div class="feedback-col">
+                                        <span>誤差距離</span>
+                                        <span class="diff-value-text" id="p2-diff-text">--</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Point 3 -->
+                        <div class="point-item" id="point-3-container" data-point-id="3">
+                            <div class="point-header accordion-toggle">
+                                <div class="point-title">
+                                    <span class="point-badge badge-p3">P3</span>
+                                    <span class="point-name">青 (右上)</span>
+                                </div>
+                                <div class="point-summary">
+                                    <div class="summary-color" id="p3-summary-color" title="現在の検出色"></div>
+                                    <span class="summary-diff" id="p3-summary-diff" title="誤差">--</span>
+                                    <div class="point-status status-idle" id="p3-status">WAIT</div>
+                                    <span class="accordion-icon"><i data-lucide="chevron-down"></i></span>
+                                </div>
+                            </div>
+                            <div class="point-body">
+                                <div class="point-controls">
+                                    <div class="ctrl-group">
+                                        <label>基準色 (Target)</label>
+                                        <div class="color-picker-wrapper">
+                                            <div class="color-preview" id="p3-target-preview" style="background-color: #0000ff;"></div>
+                                            <input type="color" id="p3-color-input" value="#0000ff">
+                                            <button class="btn-picker-pick" id="p3-pick-btn" title="画像から色を取得">
+                                                <i data-lucide="pipette"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div class="ctrl-group">
+                                        <div class="label-with-val">
+                                            <label for="p3-tolerance">許容誤差</label>
+                                            <span class="val-display" id="p3-tolerance-val">30</span>
+                                        </div>
+                                        <input type="range" id="p3-tolerance" min="5" max="100" value="30">
+                                    </div>
+                                    <div class="ctrl-group col-span-2">
+                                        <div class="coordinate-inputs">
+                                            <div>X: <input type="number" id="p3-x" value="100" min="0"></div>
+                                            <div>Y: <input type="number" id="p3-y" value="200" min="0"></div>
+                                            <div>半径: <input type="number" id="p3-radius" value="15" min="1" max="100"> px</div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="point-feedback">
+                                    <div class="feedback-col">
+                                        <span>検出値</span>
+                                        <div class="color-preview-small-wrapper">
+                                            <div class="color-preview-small" id="p3-current-preview"></div>
+                                            <span class="color-text-small" id="p3-current-text">N/A</span>
+                                        </div>
+                                    </div>
+                                    <div class="feedback-col">
+                                        <span>誤差距離</span>
+                                        <span class="diff-value-text" id="p3-diff-text">--</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Point 4 -->
+                        <div class="point-item" id="point-4-container" data-point-id="4">
+                            <div class="point-header accordion-toggle">
+                                <div class="point-title">
+                                    <span class="point-badge badge-p4">P4</span>
+                                    <span class="point-name">黒 (右側)</span>
+                                </div>
+                                <div class="point-summary">
+                                    <div class="summary-color" id="p4-summary-color" title="現在の検出色"></div>
+                                    <span class="summary-diff" id="p4-summary-diff" title="誤差">--</span>
+                                    <div class="point-status status-idle" id="p4-status">WAIT</div>
+                                    <span class="accordion-icon"><i data-lucide="chevron-down"></i></span>
+                                </div>
+                            </div>
+                            <div class="point-body">
+                                <div class="point-controls">
+                                    <div class="ctrl-group">
+                                        <label>基準色 (Target)</label>
+                                        <div class="color-picker-wrapper">
+                                            <div class="color-preview" id="p4-target-preview" style="background-color: #ffff00;"></div>
+                                            <input type="color" id="p4-color-input" value="#ffff00">
+                                            <button class="btn-picker-pick" id="p4-pick-btn" title="画像から色を取得">
+                                                <i data-lucide="pipette"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div class="ctrl-group">
+                                        <div class="label-with-val">
+                                            <label for="p4-tolerance">許容誤差</label>
+                                            <span class="val-display" id="p4-tolerance-val">30</span>
+                                        </div>
+                                        <input type="range" id="p4-tolerance" min="5" max="100" value="30">
+                                    </div>
+                                    <div class="ctrl-group col-span-2">
+                                        <div class="coordinate-inputs">
+                                            <div>X: <input type="number" id="p4-x" value="200" min="0"></div>
+                                            <div>Y: <input type="number" id="p4-y" value="200" min="0"></div>
+                                            <div>半径: <input type="number" id="p4-radius" value="15" min="1" max="100"> px</div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="point-feedback">
+                                    <div class="feedback-col">
+                                        <span>検出値</span>
+                                        <div class="color-preview-small-wrapper">
+                                            <div class="color-preview-small" id="p4-current-preview"></div>
+                                            <span class="color-text-small" id="p4-current-text">N/A</span>
+                                        </div>
+                                    </div>
+                                    <div class="feedback-col">
+                                        <span>誤差距離</span>
+                                        <span class="diff-value-text" id="p4-diff-text">--</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- BOTTOM SCREEN: Inspection History -->
+        <footer class="app-footer">
+            <div class="card history-card">
+                <div class="history-header">
+                    <div class="section-title">
+                        <i data-lucide="history"></i>
+                        <h2>検査履歴ログ</h2>
+                    </div>
+                    <div class="history-actions">
+                        <button id="clear-history-btn" class="btn btn-outline btn-xs">
+                            <i data-lucide="rotate-ccw"></i> 履歴をクリア
+                        </button>
+                        <button id="export-csv-btn" class="btn btn-secondary btn-sm">
+                            <i data-lucide="file-spreadsheet"></i> CSVエクスポート
+                        </button>
+                    </div>
+                </div>
+                <div class="history-table-wrapper">
+                    <table class="history-table">
+                        <thead>
+                            <tr>
+                                <th>検査日時</th>
+                                <th>画像名</th>
+                                <th>P1判定</th>
+                                <th>P2判定</th>
+                                <th>P3判定</th>
+                                <th>P4判定</th>
+                                <th>総合結果</th>
+                            </tr>
+                        </thead>
+                        <tbody id="history-log-body">
+                            <tr>
+                                <td colspan="7" class="no-data">履歴がありません。画像をロードして判定を行ってください。</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </footer>
+    </div>
+
+    <!-- Notification Toast -->
+    <div id="toast" class="toast-notification"></div>
+
+    <script src="app.js"></script>
+</body>
+</html>
