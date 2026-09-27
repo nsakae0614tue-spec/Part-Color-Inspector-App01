@@ -423,7 +423,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const constraints = {
             video: state.selectedCameraId ? 
                 { deviceId: { exact: state.selectedCameraId }, width: { ideal: 1920 }, height: { ideal: 1080 } } :
-                { width: { ideal: 1920 }, height: { ideal: 1080 } }
+                { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } }
         };
 
         try {
@@ -841,10 +841,45 @@ document.addEventListener('DOMContentLoaded', () => {
        5. Mouse & Drag Interaction on Canvas
        ========================================================================== */
     
-    // Canvas Mouse listeners
+    // Canvas Mouse & Touch listeners
     canvas.addEventListener('mousedown', handleMouseDown);
     window.addEventListener('mousemove', handleMouseMove);
     window.addEventListener('mouseup', handleMouseUp);
+
+    // Touch event helpers for mobile/iPhone
+    function getTouchPos(e) {
+        const touch = e.touches[0] || e.changedTouches[0];
+        return {
+            clientX: touch.clientX,
+            clientY: touch.clientY,
+            button: 0,
+            preventDefault: () => e.preventDefault()
+        };
+    }
+
+    canvas.addEventListener('touchstart', (e) => {
+        if (e.touches.length === 1) {
+            const fakeEvent = getTouchPos(e);
+            handleMouseDown(fakeEvent);
+            if (state.isDraggingPoint) {
+                e.preventDefault();
+            }
+        }
+    }, { passive: false });
+
+    window.addEventListener('touchmove', (e) => {
+        if (state.isDraggingPoint) {
+            const fakeEvent = getTouchPos(e);
+            handleMouseMove(fakeEvent);
+            e.preventDefault();
+        }
+    }, { passive: false });
+
+    window.addEventListener('touchend', () => {
+        if (state.isDraggingPoint) {
+            handleMouseUp();
+        }
+    });
 
     function getMousePosOnCanvas(e) {
         const rect = canvas.getBoundingClientRect();
